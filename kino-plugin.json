@@ -1,0 +1,51 @@
+{
+  "id": "frikiseries",
+  "name": "Frikiseries",
+  "version": "0.1.0",
+  "apiVersion": 5,
+  "entry": "plugin.js",
+  "icon": "icon.png",
+  "description": "Series retro, anime de los 80s y 90s, dibujos animados y películas clásicas",
+  "author": "stanpx",
+  "homepage": "https://github.com/stanpx/kino-plugin-frikiseries",
+  "color": "#A855F7",
+  "hosts": [
+    "www.frikiserie.com",
+    "frikiserie.com",
+    "ok.ru",
+    "*.ok.ru",
+    "st.okcdn.ru",
+    "*.okcdn.ru",
+    "vkuser.net",
+    "*.vkuser.net",
+    "mycdn.me",
+    "*.mycdn.me",
+    "vk.com",
+    "*.vk.com",
+    "vkvideo.ru",
+    "*.vkvideo.ru",
+    "archive.org",
+    "*.archive.org",
+    "ik.imagekit.io",
+    "pics.filmaffinity.com",
+    "encrypted-tbn0.gstatic.com"
+  ],
+  "streamHosts": "any",
+  "categories": [
+    "movies",
+    "series",
+    "anime"
+  ],
+  "capabilities": [
+    "search",
+    "home",
+    "browse",
+    "episodes",
+    "resolve",
+    "download"
+  ],
+  "signature": {
+    "authorKey": "6f5fc734f744d974a1fe0c21a0e7edf6e0c9ff2e35a01ffc12d9abad629d55ef",
+    "value": "41bb26285636177e52ff5fcda40dc5a831f1d84b245a6026bc98647fa0785b6e9d4bc48f38f6270635910998c3368b661b4af0ed00e51dc699bf56e1d923e004"
+  }
+}
