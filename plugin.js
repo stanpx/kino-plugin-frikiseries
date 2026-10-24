@@ -6,14 +6,17 @@
 const BASE_URL = "https://www.frikiserie.com";
 const HOME_DATA_URL = `${BASE_URL}/assets/data/home.json`;
 const INFO_DATA_URL = `${BASE_URL}/assets/data/info.json`;
+const EPISODES_BASE_URL = "https://raw.githubusercontent.com/stanpx/kino-plugin-frikiseries/main/episodes";
 
-const QUALITY_ORDER = ["full", "hd", "sd", "low", "lowest", "mobile"];
+// Priorizar HD (720p) y SD (480p) para compatibilidad universal tanto en móviles como en computadoras
+const QUALITY_ORDER = ["hd", "sd", "full", "low", "lowest", "mobile"];
 
 const DEFAULT_USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36";
 const OKRU_REFERER = "https://ok.ru/";
 
 // In-memory cache for the session
 let cachedInfo = null;
+const cachedLetterFiles = new Map();
 
 /**
  * Normaliza cadenas de texto para búsqueda (minúsculas, sin acentos ni diacríticos).
@@ -25,6 +28,17 @@ function normalizeText(str) {
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
     .trim();
+}
+
+/**
+ * Clave normalizada alfanumérica para búsqueda de capítulos.
+ */
+function normKey(str) {
+  return (str || "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]/g, "");
 }
 
 /**
@@ -82,7 +96,13 @@ function toKinoItem(item) {
     irAListaVideo: item.irAListaVideo === true
   });
 
-  const poster = item.imagen && item.imagen.startsWith("http") ? item.imagen : undefined;
+  // Si la imagen proviene de ImageKit (cuyo ancho de banda libre está agotado),
+  // se omite para que Kino busque automáticamente la carátula en TMDB/AniList.
+  let poster;
+  if (item.imagen && item.imagen.startsWith("http") && !item.imagen.includes("imagekit.io")) {
+    poster = item.imagen;
+  }
+
   const overview = item.descripcion && item.descripcion !== title ? item.descripcion.trim() : undefined;
 
   return {
@@ -169,7 +189,6 @@ export async function browse(ref, cursor) {
   let matches = [];
   if (catTarget) {
     const normTarget = normalizeText(catTarget);
-    // Filtrar por coincidencia en género, categoría o descripción
     matches = allInfo.filter((item) => {
       const matchCat = item.categoria && normalizeText(item.categoria).includes(normTarget);
       const matchDesc = item.descripcion && normalizeText(item.descripcion).includes(normTarget);
@@ -218,6 +237,7 @@ export async function search(query) {
 
 /**
  * Lista de episodios para series.
+ * Si es una serie con capítulos listados, consulta el archivo correspondiente.
  * Si es un maratón de un único archivo largo, devuelve un solo episodio llamado "Maratón completo".
  */
 export async function episodes(ref) {
@@ -228,47 +248,91 @@ export async function episodes(ref) {
     data = { video: ref, title: "Maratón completo" };
   }
 
-  const videoUrl = data.video;
-  if (!videoUrl || videoUrl === "xxx" || videoUrl === "xxxx") {
-    throw kino.error(
-      "not_found",
-      `Video no disponible para ${data.title || "esta serie"}`,
-      { userMessage: "Este título no tiene video disponible actualmente en el sitio." }
-    );
+  const needsLookup = data.irAListaVideo === true || !data.video || data.video === "xxx" || data.video === "xxxx" || !data.video.startsWith("http");
+
+  if (needsLookup) {
+    const titleKey = normKey(data.title);
+    const slugKey = normKey(data.slug);
+    const prefix = titleKey ? titleKey[0] : (slugKey ? slugKey[0] : "");
+
+    if (prefix) {
+      try {
+        let splitData = cachedLetterFiles.get(prefix);
+        if (!splitData) {
+          const res = await kino.fetch(`${EPISODES_BASE_URL}/${prefix}.json`, {
+            headers: { "Accept": "application/json" }
+          });
+          splitData = res.json();
+          cachedLetterFiles.set(prefix, splitData);
+        }
+
+        const epList = splitData[titleKey] || splitData[slugKey] || [];
+        if (Array.isArray(epList) && epList.length > 0) {
+          const episodes = epList.map((ep) => ({
+            season: ep.s || 1,
+            number: ep.n,
+            title: ep.t || `Episodio ${ep.n}`,
+            ref: JSON.stringify({
+              url: ep.v,
+              title: `${data.title} - ${ep.t || ep.n}`
+            }),
+            ...(ep.i ? { still: ep.i } : {})
+          }));
+
+          return { episodes };
+        }
+      } catch {
+        // Si no se puede descargar el archivo dividido, se continúa con el intento de maratón
+      }
+    }
   }
 
-  // Devolver el maratón completo como un único episodio
-  const episodeRef = JSON.stringify({
-    url: videoUrl,
-    title: data.title || "Maratón completo"
-  });
+  // Devolver el maratón completo si hay un enlace directo de video
+  const videoUrl = data.video;
+  if (videoUrl && videoUrl.startsWith("http") && videoUrl !== "xxx" && videoUrl !== "xxxx") {
+    const episodeRef = JSON.stringify({
+      url: videoUrl,
+      title: data.title || "Maratón completo"
+    });
 
-  return {
-    episodes: [
-      {
-        season: 1,
-        number: 1,
-        title: "Maratón completo",
-        ref: episodeRef
-      }
-    ]
-  };
+    return {
+      episodes: [
+        {
+          season: 1,
+          number: 1,
+          title: "Maratón completo",
+          ref: episodeRef
+        }
+      ]
+    };
+  }
+
+  throw kino.error(
+    "not_found",
+    `Video no disponible para ${data.title || "esta serie"}`,
+    { userMessage: "Este título no tiene video disponible actualmente en el sitio." }
+  );
 }
 
 /**
- * Extrae streams MP4 desde el reproductor OKRU (ok.ru/videoembed/...).
+ * Extrae streams MP4 y HLS desde el reproductor OKRU (ok.ru/videoembed/...).
+ * Compatible tanto con dispositivos móviles como con computadoras de escritorio.
  */
 async function resolveOkru(videoUrl) {
   let embedUrl = videoUrl;
-  if (videoUrl.includes("/video/")) {
+  const idMatch = videoUrl.match(/video(?:embed)?\/(\d+)/);
+  if (idMatch) {
+    embedUrl = `https://ok.ru/videoembed/${idMatch[1]}`;
+  } else if (videoUrl.includes("/video/")) {
     embedUrl = videoUrl.replace("/video/", "/videoembed/");
   }
+  embedUrl = embedUrl.replace("m.ok.ru", "ok.ru");
 
   let html;
   try {
     const res = await kino.fetch(embedUrl, {
       headers: {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
+        "User-Agent": DEFAULT_USER_AGENT
       }
     });
     html = res.text();
@@ -328,7 +392,7 @@ async function resolveOkru(videoUrl) {
     throw kino.error("not_found", "No hay enlaces de video en la metadata de OKRU");
   }
 
-  // Ordenar videos por orden de calidad deseada
+  // Ordenar videos por orden de calidad deseada (HD y SD primero para fluidez en móviles y PC)
   const sortedVideos = [...rawVideos].sort((a, b) => {
     const ia = QUALITY_ORDER.indexOf(a.name);
     const ib = QUALITY_ORDER.indexOf(b.name);
@@ -360,12 +424,13 @@ async function resolveOkru(videoUrl) {
     primaryUrl = metadata.hlsManifestUrl;
   }
 
+  // Agregar HLS adaptativo como opción para redes móviles o reproductor ExoPlayer/MPV
   if (metadata.hlsManifestUrl && primaryUrl !== metadata.hlsManifestUrl && alternatives.length < 8) {
     alternatives.push({
       url: metadata.hlsManifestUrl,
       mime: "application/x-mpegURL",
       headers: streamHeaders,
-      label: "OKRU (HLS)"
+      label: "OKRU (HLS Adaptativo)"
     });
   }
 
@@ -394,7 +459,7 @@ export async function resolve(ref) {
     throw kino.error("not_found", "Referencia de video vacía");
   }
 
-  // 1. Alojamiento OKRU
+  // 1. Alojamiento OKRU (videoembed, m.ok.ru, ok.ru/video)
   if (targetUrl.includes("ok.ru")) {
     return await resolveOkru(targetUrl);
   }

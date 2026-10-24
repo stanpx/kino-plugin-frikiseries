@@ -1,7 +1,7 @@
 {
   "id": "frikiseries",
   "name": "Frikiseries",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "apiVersion": 5,
   "entry": "plugin.js",
   "icon": "icon.png",
@@ -12,6 +12,7 @@
   "hosts": [
     "www.frikiserie.com",
     "frikiserie.com",
+    "raw.githubusercontent.com",
     "ok.ru",
     "*.ok.ru",
     "st.okcdn.ru",
@@ -46,6 +47,6 @@
   ],
   "signature": {
     "authorKey": "6f5fc734f744d974a1fe0c21a0e7edf6e0c9ff2e35a01ffc12d9abad629d55ef",
-    "value": "333234b9be808030df3f99957ea8b3191382733bd2b80c130fc35c893e4e5939ed0870839c3251f9d9323049ae10adf1cc735b3717c4ed7d7fb07f5e60dd2605"
+    "value": "dbe513f995c200063b1b5d139cf1fbd7cc97f4e8739cd67968db6dbe603b9d8825c05e9585209b2b143d39d596c68cfe6c5225a9eabbb11192c391f4342f5b0b"
   }
 }
