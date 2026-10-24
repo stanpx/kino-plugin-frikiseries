@@ -1,7 +1,7 @@
 {
   "id": "frikiseries",
   "name": "Frikiseries",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "apiVersion": 5,
   "entry": "plugin.js",
   "icon": "icon.png",
@@ -46,6 +46,6 @@
   ],
   "signature": {
     "authorKey": "6f5fc734f744d974a1fe0c21a0e7edf6e0c9ff2e35a01ffc12d9abad629d55ef",
-    "value": "41bb26285636177e52ff5fcda40dc5a831f1d84b245a6026bc98647fa0785b6e9d4bc48f38f6270635910998c3368b661b4af0ed00e51dc699bf56e1d923e004"
+    "value": "333234b9be808030df3f99957ea8b3191382733bd2b80c130fc35c893e4e5939ed0870839c3251f9d9323049ae10adf1cc735b3717c4ed7d7fb07f5e60dd2605"
   }
 }

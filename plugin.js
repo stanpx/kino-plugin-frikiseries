@@ -9,6 +9,9 @@ const INFO_DATA_URL = `${BASE_URL}/assets/data/info.json`;
 
 const QUALITY_ORDER = ["full", "hd", "sd", "low", "lowest", "mobile"];
 
+const DEFAULT_USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36";
+const OKRU_REFERER = "https://ok.ru/";
+
 // In-memory cache for the session
 let cachedInfo = null;
 
@@ -332,6 +335,11 @@ async function resolveOkru(videoUrl) {
     return (ia === -1 ? 99 : ia) - (ib === -1 ? 99 : ib);
   });
 
+  const streamHeaders = {
+    "User-Agent": DEFAULT_USER_AGENT,
+    "Referer": OKRU_REFERER
+  };
+
   let primaryUrl = "";
   const alternatives = [];
 
@@ -339,9 +347,12 @@ async function resolveOkru(videoUrl) {
     primaryUrl = sortedVideos[0].url;
     for (let i = 1; i < sortedVideos.length && alternatives.length < 7; i++) {
       if (sortedVideos[i].url) {
+        const qName = (sortedVideos[i].name || "MP4").toUpperCase();
         alternatives.push({
           url: sortedVideos[i].url,
-          mime: "video/mp4"
+          mime: "video/mp4",
+          headers: streamHeaders,
+          label: `OKRU (${qName})`
         });
       }
     }
@@ -352,13 +363,16 @@ async function resolveOkru(videoUrl) {
   if (metadata.hlsManifestUrl && primaryUrl !== metadata.hlsManifestUrl && alternatives.length < 8) {
     alternatives.push({
       url: metadata.hlsManifestUrl,
-      mime: "application/x-mpegURL"
+      mime: "application/x-mpegURL",
+      headers: streamHeaders,
+      label: "OKRU (HLS)"
     });
   }
 
   return {
     url: primaryUrl,
     mime: primaryUrl.includes(".m3u8") ? "application/x-mpegURL" : "video/mp4",
+    headers: streamHeaders,
     ...(alternatives.length > 0 ? { alternatives } : {})
   };
 }
@@ -398,7 +412,8 @@ export async function resolve(ref) {
   if (targetUrl.includes("archive.org")) {
     return {
       url: targetUrl,
-      mime: targetUrl.includes(".m3u8") ? "application/x-mpegURL" : "video/mp4"
+      mime: targetUrl.includes(".m3u8") ? "application/x-mpegURL" : "video/mp4",
+      headers: { "User-Agent": DEFAULT_USER_AGENT }
     };
   }
 
@@ -406,7 +421,8 @@ export async function resolve(ref) {
   if (targetUrl.startsWith("http://") || targetUrl.startsWith("https://")) {
     return {
       url: targetUrl,
-      mime: targetUrl.includes(".m3u8") ? "application/x-mpegURL" : "video/mp4"
+      mime: targetUrl.includes(".m3u8") ? "application/x-mpegURL" : "video/mp4",
+      headers: { "User-Agent": DEFAULT_USER_AGENT }
     };
   }
 
